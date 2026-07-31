@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../../../state/auth/auth_provider.dart';
@@ -7,6 +8,7 @@ import '../data/moments_api.dart';
 import '../data/moments_provider.dart';
 import 'media_preview.dart';
 import 'moment_detail_screen.dart';
+import 'moment_extension.dart';
 import 'moment_editor_screen.dart';
 
 class MomentsScreen extends ConsumerWidget {
@@ -86,9 +88,17 @@ class _MomentCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const CircleAvatar(child: Icon(Icons.person)),
-                const SizedBox(width: 12),
-                Expanded(child: Text(_time(moment.createdAt))),
+                Expanded(
+                  child: Row(
+                    children: [
+                      Expanded(child: Text(_time(moment.createdAt))),
+                      if (moment.pinnedOrder > 0)
+                        const Chip(label: Text('置顶'), avatar: Icon(Icons.push_pin, size: 16)),
+                      if (moment.isAd == 1)
+                        const Chip(label: Text('广告'), avatar: Icon(Icons.campaign_outlined, size: 16)),
+                    ],
+                  ),
+                ),
                 if (isAdmin)
                   IconButton(
                     tooltip: '编辑动态',
@@ -103,7 +113,25 @@ class _MomentCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            Text(moment.content),
+            MomentMarkdown(content: moment.content),
+            if (moment.tags.trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                children: moment.tags.split(',').where((tag) => tag.trim().isNotEmpty).map((tag) => Chip(label: Text('#${tag.trim()}'))).toList(),
+              ),
+            ],
+            if (moment.messageLink.trim().isNotEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: isHttpUrl(moment.messageLink) ? () => launchUrl(Uri.parse(moment.messageLink), mode: LaunchMode.externalApplication) : null,
+                  icon: const Icon(Icons.link, size: 18),
+                  label: const Text('查看来源'),
+                ),
+              ),
+            if (parseMomentExtension(moment.extension) case final extension?)
+              MomentExtensionCard(extension: extension),
             if (moment.media.isNotEmpty) ...[
               const SizedBox(height: 12),
               SizedBox(

@@ -18,16 +18,22 @@ final rssApiProvider = Provider<RssApi>((ref) {
     ApiClient(baseUrl: baseUrl, store: ref.watch(secureStoreProvider)),
   );
 });
+
 final rssRepositoryProvider = Provider<RssRepository>(
   (ref) => RssRepository(
     api: ref.watch(rssApiProvider),
     database: ref.watch(appDatabaseProvider),
   ),
 );
-final rssFeedsProvider = FutureProvider.autoDispose<RssPage<RssFeedDto>>(
-  (ref) => ref.watch(rssRepositoryProvider).feeds(),
+
+final rssFeedsProvider = FutureProvider.autoDispose.family<RssPage<RssFeedDto>, int>(
+  (ref, page) => ref.watch(rssRepositoryProvider).feeds(page: page),
 );
+
 final rssPostsProvider = FutureProvider.autoDispose
-    .family<RssPage<RssPostDto>, int?>(
-      (ref, id) => ref.watch(rssRepositoryProvider).posts(rssId: id),
+    .family<RssPage<RssPostDto>, ({int? rssId, int page})>(
+      (ref, query) => ref.watch(rssRepositoryProvider).posts(
+        rssId: query.rssId,
+        page: query.page,
+      ),
     );

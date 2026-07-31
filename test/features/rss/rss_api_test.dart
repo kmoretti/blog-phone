@@ -40,6 +40,12 @@ void main() {
     final api = RssApi(ApiClient(baseUrl: 'https://api.test', store: MemorySecureStore({'jwt': 'token'}), dio: Dio()..httpClientAdapter = adapter));
     await api.fetch(4);
     expect(adapter.request?.uri.path, '/api/action/rss/4/fetch');
+    await api.listFeeds(page: 2, pageSize: 10);
+    expect(adapter.request?.uri.queryParameters['page'], '2');
+    expect(adapter.request?.uri.queryParameters['page_size'], '10');
+    await api.listPosts(rssId: 7, page: 2, pageSize: 10);
+    expect(adapter.request?.uri.queryParameters['rss_id'], '7');
+    expect(adapter.request?.uri.queryParameters['page'], '2');
     await api.deletePost(9);
     expect(adapter.request?.uri.path, '/api/action/rss/posts/9');
   });

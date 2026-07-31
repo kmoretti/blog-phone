@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/moments_api.dart';
 import '../data/moments_provider.dart';
 import 'media_preview.dart';
+import 'moment_extension.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ReactionToggleResult {
   const ReactionToggleResult({
@@ -57,7 +59,39 @@ class _MomentDetailScreenState extends ConsumerState<MomentDetailScreen> {
     body: ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text(moment.content, style: Theme.of(context).textTheme.bodyLarge),
+        MomentMarkdown(content: moment.content),
+        if (moment.tags.trim().isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            children: moment.tags.split(',').where((tag) => tag.trim().isNotEmpty).map((tag) => Chip(label: Text('#${tag.trim()}'))).toList(),
+          ),
+        ],
+        if (moment.pinnedOrder > 0 || moment.isAd == 1)
+          Wrap(
+            spacing: 8,
+            children: [
+              if (moment.pinnedOrder > 0) const Chip(label: Text('置顶'), avatar: Icon(Icons.push_pin, size: 16)),
+              if (moment.isAd == 1) const Chip(label: Text('广告'), avatar: Icon(Icons.campaign_outlined, size: 16)),
+            ],
+          ),
+        if (moment.messageLink.trim().isNotEmpty && isHttpUrl(moment.messageLink))
+          TextButton.icon(
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final opened = await launchUrl(
+                Uri.parse(moment.messageLink),
+                mode: LaunchMode.externalApplication,
+              );
+              if (!opened && mounted) {
+                messenger.showSnackBar(const SnackBar(content: Text('无法打开来源链接')));
+              }
+            },
+            icon: const Icon(Icons.link, size: 18),
+            label: const Text('查看来源'),
+          ),
+        if (parseMomentExtension(moment.extension) case final extension?)
+          MomentExtensionCard(extension: extension),
         const SizedBox(height: 16),
         ...moment.media.map(
           (media) => Padding(

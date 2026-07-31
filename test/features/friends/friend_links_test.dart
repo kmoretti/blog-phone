@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -70,6 +72,23 @@ void main() {
     );
   });
 
+  test('admin status filters include every backend status', () async {
+    final source = await File(
+      'lib/features/friends/presentation/friend_links_screen.dart',
+    ).readAsString();
+    final match = RegExp(
+      r'class _AdminFilters[\s\S]*?children:\s*\[([^\]]+)\]',
+    ).firstMatch(source);
+
+    expect(match, isNotNull);
+    final statuses = match!.group(1)!;
+    expect(statuses, contains("'pending'"));
+    expect(statuses, contains("'survival'"));
+    expect(statuses, contains("'timeout'"));
+    expect(statuses, contains("'error'"));
+    expect(statuses, contains("'rejected'"));
+  });
+
   test('admin mutations use authenticated friend action endpoints', () async {
     final adapter = FriendAdapter('{"code":200,"data":{}}');
     final api = FriendLinksApi(
@@ -84,5 +103,69 @@ void main() {
     expect(adapter.request?.uri.toString(), 'https://api.test/api/action/friend/7');
     expect(adapter.request?.method, 'PUT');
     expect(adapter.request?.data, {'data': {'website_name': '新名'}});
+  });
+
+  test('parses every friend link field and serializes the complete payload', () {
+    final item = FriendLinkDto.fromJson({
+      'id': 7,
+      'name': '站点',
+      'link': 'https://site.test',
+      'avatar': 'https://site.test/a.png',
+      'description': '描述',
+      'email': 'owner@site.test',
+      'enable_rss': true,
+      'skip_health_check': true,
+      'friend_link_page': 'https://site.test/friends',
+      'feed': 'https://site.test/feed.xml',
+      'color': '#123456',
+      'rss': 'https://site.test/rss.xml',
+      'tags': ['技术'],
+      'status': 'pending',
+      'rejection_reason': '缺少描述',
+    });
+
+    expect(item.email, 'owner@site.test');
+    expect(item.enableRss, isTrue);
+    expect(item.skipHealthCheck, isTrue);
+    expect(item.friendLinkPage, 'https://site.test/friends');
+    expect(item.feed, 'https://site.test/feed.xml');
+    expect(item.color, '#123456');
+    expect(item.rss, 'https://site.test/rss.xml');
+    expect(item.rejectionReason, '缺少描述');
+
+    const payload = FriendLinkPayload(
+      name: '站点',
+      link: 'https://site.test',
+      avatar: 'https://site.test/a.png',
+      description: '描述',
+      email: 'owner@site.test',
+      enableRss: true,
+      skipHealthCheck: true,
+      friendLinkPage: 'https://site.test/friends',
+      feed: 'https://site.test/feed.xml',
+      color: '#123456',
+      rss: 'https://site.test/rss.xml',
+      tags: ['技术'],
+      status: 'approved',
+      rejectionReason: '已处理',
+    );
+    expect(payload.toJson(), const {
+      'data': {
+        'website_name': '站点',
+        'website_url': 'https://site.test',
+        'website_icon_url': 'https://site.test/a.png',
+        'description': '描述',
+        'email': 'owner@site.test',
+        'enable_rss': true,
+        'skip_health_check': true,
+        'friend_link_page': 'https://site.test/friends',
+        'feed': 'https://site.test/feed.xml',
+        'color': '#123456',
+        'rss': 'https://site.test/rss.xml',
+        'tags': ['技术'],
+        'status': 'approved',
+        'rejection_reason': '已处理',
+      },
+    });
   });
 }
