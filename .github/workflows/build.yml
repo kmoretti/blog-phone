@@ -49,6 +49,35 @@ jobs:
           cache: true
       - name: Get dependencies
         run: flutter pub get
+      - name: Prepare Android signing
+        shell: pwsh
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          $required = @{
+            ANDROID_KEYSTORE_BASE64 = $env:ANDROID_KEYSTORE_BASE64
+            ANDROID_KEYSTORE_PASSWORD = $env:ANDROID_KEYSTORE_PASSWORD
+            ANDROID_KEY_ALIAS = $env:ANDROID_KEY_ALIAS
+            ANDROID_KEY_PASSWORD = $env:ANDROID_KEY_PASSWORD
+          }
+          foreach ($entry in $required.GetEnumerator()) {
+            if ([string]::IsNullOrWhiteSpace($entry.Value)) {
+              throw "Missing GitHub secret: $($entry.Key)"
+            }
+          }
+          [IO.File]::WriteAllBytes(
+            "android/app/upload-keystore.jks",
+            [Convert]::FromBase64String($env:ANDROID_KEYSTORE_BASE64)
+          )
+          @"
+          storeFile=upload-keystore.jks
+          storePassword=$($env:ANDROID_KEYSTORE_PASSWORD)
+          keyAlias=$($env:ANDROID_KEY_ALIAS)
+          keyPassword=$($env:ANDROID_KEY_PASSWORD)
+          "@ | Set-Content -Path android/key.properties -Encoding ascii
       - name: Build APK
         run: flutter build apk --release
       - name: Upload APK
@@ -58,6 +87,12 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 14
+      - name: Cleanup Android signing
+        if: always()
+        shell: pwsh
+        run: |
+          Remove-Item -Force -ErrorAction SilentlyContinue android/key.properties
+          Remove-Item -Force -ErrorAction SilentlyContinue android/app/upload-keystore.jks
 
   windows:
     name: Build Windows application

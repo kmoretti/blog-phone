@@ -1,3 +1,32 @@
+import java.io.FileInputStream
+import java.util.Properties
+
+val keyPropertiesFile = rootProject.file("key.properties")
+val keyProperties = Properties()
+if (keyPropertiesFile.exists()) {
+    FileInputStream(keyPropertiesFile).use(keyProperties::load)
+}
+
+val requiredSigningProperties = listOf(
+    "storeFile",
+    "storePassword",
+    "keyAlias",
+    "keyPassword",
+)
+
+gradle.taskGraph.whenReady {
+    if (allTasks.any { it.name.contains("release", ignoreCase = true) }) {
+        val missingProperties = requiredSigningProperties.filter {
+            keyProperties.getProperty(it).isNullOrBlank()
+        }
+        if (missingProperties.isNotEmpty()) {
+            throw GradleException(
+                "android/key.properties is missing: ${missingProperties.joinToString(", ")}",
+            )
+        }
+    }
+}
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -26,9 +55,18 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs.create("release") {
+        if (requiredSigningProperties.none { keyProperties.getProperty(it).isNullOrBlank() }) {
+            storeFile = file(keyProperties.getProperty("storeFile"))
+            storePassword = keyProperties.getProperty("storePassword")
+            keyAlias = keyProperties.getProperty("keyAlias")
+            keyPassword = keyProperties.getProperty("keyPassword")
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

@@ -42,7 +42,7 @@ class _AppState extends ConsumerState<App> {
   Widget build(BuildContext context) {
     final state = ref.watch(authProvider);
     return MaterialApp(
-      title: 'Blog Phone',
+      title: 'blog-api',
       theme: MemoFlowTheme.light,
       darkTheme: MemoFlowTheme.dark,
       home: _homeFor(state),
