@@ -3,6 +3,8 @@ import 'package:dio/dio.dart';
 import '../../core/storage/secure_store.dart';
 import 'api_exception.dart';
 
+const defaultApiBaseUrl = 'https://blog-api.2005815.xyz';
+
 class ApiClient {
   ApiClient({
     required String baseUrl,

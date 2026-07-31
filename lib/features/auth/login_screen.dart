@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/api/api_exception.dart';
 import '../../data/models/auth_models.dart';
 import '../../state/auth/auth_provider.dart';
 import '../../state/settings/settings_provider.dart';
@@ -137,6 +138,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return value == null || value.trim().isEmpty ? message : null;
   };
 
+  String _configErrorMessage(ApiException error) {
+    if (error.isNetworkError || error.isTimeout) {
+      return '无法连接服务器，请检查网络连接和服务器地址';
+    }
+    if (error.statusCode == 404 || error.code == 404) {
+      return '服务器不支持验证配置接口，请确认 API 地址填写的是根域名';
+    }
+    return '验证配置加载失败：${error.message}';
+  }
+
   Future<bool> _loadVerifyConfig(String server) async {
     try {
       final config = await ref
@@ -148,8 +159,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _configError = null;
       });
       return true;
-    } catch (_) {
-      if (mounted) setState(() => _configError = '无法加载验证配置');
+    } on ApiException catch (error) {
+      if (mounted) setState(() => _configError = _configErrorMessage(error));
+      return false;
+    } catch (error) {
+      if (mounted) setState(() => _configError = '验证配置加载失败：$error');
       return false;
     }
   }

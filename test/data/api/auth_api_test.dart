@@ -50,6 +50,10 @@ class RecordingAdapter implements HttpClientAdapter {
 }
 
 void main() {
+  test('uses the deployed API as the default public server', () {
+    expect(defaultApiBaseUrl, 'https://blog-api.2005815.xyz');
+  });
+
   test('parses login token and expiration', () {
     final result = LoginResponse.fromJson({
       'code': 200,

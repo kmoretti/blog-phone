@@ -8,9 +8,26 @@ import 'rss_repository.dart';
 final rssApiProvider = Provider<RssApi>((ref) {
   final state = ref.watch(authProvider);
   ref.watch(networkRefreshProvider);
-  final baseUrl = state is AuthenticatedState ? state.session.baseUrl : const String.fromEnvironment('BLOG_API_BASE_URL', defaultValue: 'http://localhost');
-  return RssApi(ApiClient(baseUrl: baseUrl, store: ref.watch(secureStoreProvider)));
+  final baseUrl = state is AuthenticatedState
+      ? state.session.baseUrl
+      : const String.fromEnvironment(
+          'BLOG_API_BASE_URL',
+          defaultValue: defaultApiBaseUrl,
+        );
+  return RssApi(
+    ApiClient(baseUrl: baseUrl, store: ref.watch(secureStoreProvider)),
+  );
 });
-final rssRepositoryProvider = Provider<RssRepository>((ref) => RssRepository(api: ref.watch(rssApiProvider), database: ref.watch(appDatabaseProvider)));
-final rssFeedsProvider = FutureProvider.autoDispose<RssPage<RssFeedDto>>((ref) => ref.watch(rssRepositoryProvider).feeds());
-final rssPostsProvider = FutureProvider.autoDispose.family<RssPage<RssPostDto>, int?>((ref, id) => ref.watch(rssRepositoryProvider).posts(rssId: id));
+final rssRepositoryProvider = Provider<RssRepository>(
+  (ref) => RssRepository(
+    api: ref.watch(rssApiProvider),
+    database: ref.watch(appDatabaseProvider),
+  ),
+);
+final rssFeedsProvider = FutureProvider.autoDispose<RssPage<RssFeedDto>>(
+  (ref) => ref.watch(rssRepositoryProvider).feeds(),
+);
+final rssPostsProvider = FutureProvider.autoDispose
+    .family<RssPage<RssPostDto>, int?>(
+      (ref, id) => ref.watch(rssRepositoryProvider).posts(rssId: id),
+    );

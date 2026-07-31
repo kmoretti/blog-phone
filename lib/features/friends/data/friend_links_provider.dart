@@ -9,13 +9,29 @@ import 'friend_links_repository.dart';
 final friendLinksApiProvider = Provider<FriendLinksApi>((ref) {
   final auth = ref.watch(authProvider);
   ref.watch(networkRefreshProvider);
-  final baseUrl = auth is AuthenticatedState ? auth.session.baseUrl : const String.fromEnvironment('BLOG_API_BASE_URL', defaultValue: 'http://localhost');
-  return FriendLinksApi(ApiClient(baseUrl: baseUrl, store: ref.watch(secureStoreProvider)));
+  final baseUrl = auth is AuthenticatedState
+      ? auth.session.baseUrl
+      : const String.fromEnvironment(
+          'BLOG_API_BASE_URL',
+          defaultValue: defaultApiBaseUrl,
+        );
+  return FriendLinksApi(
+    ApiClient(baseUrl: baseUrl, store: ref.watch(secureStoreProvider)),
+  );
 });
 
-final friendLinksRepositoryProvider = Provider<FriendLinksRepository>((ref) => FriendLinksRepository(api: ref.watch(friendLinksApiProvider), database: ref.watch(appDatabaseProvider)));
-final friendLinksAdminProvider = Provider<bool>((ref) => ref.watch(authProvider) is AuthenticatedState);
-final friendLinksStatusProvider = StateProvider.autoDispose<String?>((ref) => null);
+final friendLinksRepositoryProvider = Provider<FriendLinksRepository>(
+  (ref) => FriendLinksRepository(
+    api: ref.watch(friendLinksApiProvider),
+    database: ref.watch(appDatabaseProvider),
+  ),
+);
+final friendLinksAdminProvider = Provider<bool>(
+  (ref) => ref.watch(authProvider) is AuthenticatedState,
+);
+final friendLinksStatusProvider = StateProvider.autoDispose<String?>(
+  (ref) => null,
+);
 
 class FriendLinksQuery {
   const FriendLinksQuery({required this.admin, this.status});
@@ -24,10 +40,17 @@ class FriendLinksQuery {
 
   @override
   bool operator ==(Object other) =>
-      other is FriendLinksQuery && other.admin == admin && other.status == status;
+      other is FriendLinksQuery &&
+      other.admin == admin &&
+      other.status == status;
 
   @override
   int get hashCode => Object.hash(admin, status);
 }
 
-final friendLinksPageProvider = FutureProvider.autoDispose.family<FriendLinksPage, FriendLinksQuery>((ref, query) => ref.watch(friendLinksRepositoryProvider).load(admin: query.admin, status: query.status));
+final friendLinksPageProvider = FutureProvider.autoDispose
+    .family<FriendLinksPage, FriendLinksQuery>(
+      (ref, query) => ref
+          .watch(friendLinksRepositoryProvider)
+          .load(admin: query.admin, status: query.status),
+    );

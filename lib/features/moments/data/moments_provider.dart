@@ -14,7 +14,7 @@ final momentsApiProvider = Provider<MomentsApi>((ref) {
       ? session.session.baseUrl
       : const String.fromEnvironment(
           'BLOG_API_BASE_URL',
-          defaultValue: 'http://localhost',
+          defaultValue: defaultApiBaseUrl,
         );
   return MomentsApi(
     client: ApiClient(baseUrl: baseUrl, store: store),
