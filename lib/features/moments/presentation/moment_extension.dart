@@ -132,7 +132,8 @@ MomentExtension? parseMomentExtension(String? value) => MomentExtension.fromJson
 
 bool isHttpUrl(String value) {
   final uri = Uri.tryParse(value.trim());
-  return uri != null && (uri.scheme == 'http' || uri.scheme == 'https') && uri.host.isNotEmpty;
+  final scheme = uri?.scheme.toLowerCase();
+  return uri != null && (scheme == 'http' || scheme == 'https') && uri.host.isNotEmpty;
 }
 
 class MomentMarkdown extends StatelessWidget {

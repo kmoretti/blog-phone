@@ -4,9 +4,11 @@ import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 
+import '../../../data/api/api_exception.dart';
 import '../data/moments_api.dart';
 import '../data/moments_provider.dart';
 import 'moment_extension.dart';
+import 'moment_extension_editor.dart';
 
 class MomentEditorScreen extends ConsumerStatefulWidget {
   const MomentEditorScreen({super.key, this.moment});
@@ -20,10 +22,15 @@ class _MomentEditorScreenState extends ConsumerState<MomentEditorScreen> {
   final tagsController = TextEditingController();
   final pinnedOrderController = TextEditingController();
   final extensionController = TextEditingController();
+  final extensionEditorKey = GlobalKey<MomentExtensionEditorState>();
   final messageLinkController = TextEditingController();
   final paths = <String>[];
+  final mediaEntries = <MomentMediaEntry>[];
+  final deletedMediaIds = <int>{};
+  final removedMediaEntries = <MomentMediaEntry>[];
   String status = 'visible';
   bool isAd = false;
+  bool isSaving = false;
 
   @override
   void initState() {
@@ -37,6 +44,7 @@ class _MomentEditorScreenState extends ConsumerState<MomentEditorScreen> {
       messageLinkController.text = moment.messageLink;
       status = moment.status;
       isAd = moment.isAd == 1;
+      mediaEntries.addAll(moment.media.map(MomentMediaEntry.fromDto));
     }
   }
 
@@ -67,10 +75,9 @@ class _MomentEditorScreenState extends ConsumerState<MomentEditorScreen> {
             value: isAd,
             onChanged: (value) => setState(() => isAd = value),
           ),
-          TextField(
+          MomentExtensionEditor(
+            key: extensionEditorKey,
             controller: extensionController,
-            maxLines: 3,
-            decoration: const InputDecoration(labelText: 'Extension'),
           ),
           TextField(
             controller: messageLinkController,
@@ -102,12 +109,41 @@ class _MomentEditorScreenState extends ConsumerState<MomentEditorScreen> {
                 },
                 icon: const Icon(Icons.camera_alt),
               ),
+              IconButton(
+                tooltip: '外链图片',
+                onPressed: () => _addExternalMedia('image'),
+                icon: const Icon(Icons.image_outlined),
+              ),
+              IconButton(
+                tooltip: '外链视频',
+                onPressed: () => _addExternalMedia('video'),
+                icon: const Icon(Icons.video_library_outlined),
+              ),
             ],
           ),
           if (paths.isNotEmpty)
             SizedBox(
               height: 96,
               child: ListView(children: paths.map(Text.new).toList()),
+            ),
+          if (mediaEntries.isNotEmpty)
+            SizedBox(
+              height: 140,
+              child: ListView.builder(
+                itemCount: mediaEntries.length,
+                itemBuilder: (context, index) {
+                  final entry = mediaEntries[index];
+                  return ListTile(
+                    dense: true,
+                    leading: Icon(entry.mediaType == 'video' ? Icons.videocam : Icons.image),
+                    title: Text(entry.url, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () => _removeMedia(entry),
+                    ),
+                  );
+                },
+              ),
             ),
           if (widget.moment != null)
             DropdownButtonFormField<String>(
@@ -123,8 +159,13 @@ class _MomentEditorScreenState extends ConsumerState<MomentEditorScreen> {
               },
             ),
           FilledButton(
-            onPressed: _submit,
-            child: Text(widget.moment == null ? '保存' : '更新'),
+            onPressed: isSaving ? null : _submit,
+            child: isSaving
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(widget.moment == null ? '保存' : '更新'),
           ),
           if (widget.moment != null)
             TextButton(
@@ -141,7 +182,55 @@ class _MomentEditorScreenState extends ConsumerState<MomentEditorScreen> {
     ),
   );
 
+  Future<void> _addExternalMedia(String mediaType) async {
+    final urlController = TextEditingController();
+    final url = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(mediaType == 'video' ? '添加外链视频' : '添加外链图片'),
+        content: TextField(
+          controller: urlController,
+          autofocus: true,
+          keyboardType: TextInputType.url,
+          decoration: const InputDecoration(labelText: 'URL'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.pop(context, urlController.text), child: const Text('添加')),
+        ],
+      ),
+    );
+    urlController.dispose();
+    if (!mounted || url == null) return;
+    try {
+      final payload = buildExternalMediaPayload(url, mediaType);
+      setState(() => mediaEntries.add(MomentMediaEntry(
+        url: payload.mediaUrl,
+        mediaType: payload.mediaType,
+        isExisting: false,
+      )));
+    } on FormatException catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
+  void _removeMedia(MomentMediaEntry entry) {
+    setState(() {
+      if (entry.isExisting && entry.id != null) {
+        deletedMediaIds.add(entry.id!);
+        removedMediaEntries.add(entry);
+      }
+      mediaEntries.remove(entry);
+    });
+  }
+
   Future<void> _submit() async {
+    if (isSaving) return;
+    final extensionErrors = extensionEditorKey.currentState?.validateAndSync() ?? const <String>[];
+    if (extensionErrors.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(extensionErrors.join('；'))));
+      return;
+    }
     final pinnedOrder = int.tryParse(pinnedOrderController.text.trim());
     if (pinnedOrder == null || pinnedOrder < 0) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('置顶顺序必须是非负整数')));
@@ -152,42 +241,72 @@ class _MomentEditorScreenState extends ConsumerState<MomentEditorScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('来源链接必须是 HTTP(S) 地址')));
       return;
     }
+    setState(() => isSaving = true);
     final navigator = Navigator.of(context);
     final repository = ref.read(momentsRepositoryProvider);
     final moment = widget.moment;
-    if (moment == null) {
-      await repository.save(
-        CreateMomentPayload(
-          content: controller.text,
-          tags: tagsController.text,
-          pinnedOrder: pinnedOrder,
-          isAd: isAd ? 1 : 0,
-          extension: extensionController.text,
-          messageLink: link,
-          media: paths.map((filePath) => CreateMediaPayload(
-            mediaUrl: filePath,
-            mediaType: _mediaType(filePath),
-            isLocal: 1,
-            name: path.basename(filePath),
-          )).toList(),
-        ),
-      );
-    } else {
-      await repository.api.update(
-        moment.id,
-        UpdateMomentPayload(
-          content: controller.text,
-          status: status,
-          tags: tagsController.text,
-          pinnedOrder: pinnedOrder,
-          isAd: isAd ? 1 : 0,
-          extension: extensionController.text,
-          messageLink: link,
-        ),
-      );
+    final localMedia = paths.map((filePath) => CreateMediaPayload(
+      mediaUrl: filePath,
+      mediaType: _mediaType(filePath),
+      isLocal: 1,
+      name: path.basename(filePath),
+    ));
+    final externalMedia = mediaEntries
+        .where((entry) => !entry.isExisting)
+        .map((entry) => entry.toPayload())
+        .toList();
+    final removedEntries = List<MomentMediaEntry>.from(removedMediaEntries);
+    try {
+      if (moment == null) {
+        await repository.save(
+          CreateMomentPayload(
+            content: controller.text,
+            tags: tagsController.text,
+            pinnedOrder: pinnedOrder,
+            isAd: isAd ? 1 : 0,
+            extension: extensionController.text,
+            messageLink: link,
+            media: [...localMedia, ...externalMedia],
+          ),
+        );
+      } else {
+        await repository.api.update(
+          moment.id,
+          UpdateMomentPayload(
+            content: controller.text,
+            status: status,
+            tags: tagsController.text,
+            pinnedOrder: pinnedOrder,
+            isAd: isAd ? 1 : 0,
+            extension: extensionController.text,
+            messageLink: link,
+          ),
+        );
+        for (final mediaId in deletedMediaIds) {
+          await repository.api.deleteMedia(mediaId);
+        }
+        for (final media in externalMedia) {
+          await repository.api.createMedia(moment.id, media);
+        }
+      }
+      if (!mounted) return;
+      navigator.pop();
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        isSaving = false;
+        if (removedEntries.isNotEmpty) {
+          mediaEntries.addAll(removedEntries.where((entry) => !mediaEntries.contains(entry)));
+          deletedMediaIds.removeAll(removedEntries.map((entry) => entry.id!));
+          removedMediaEntries.removeWhere(removedEntries.contains);
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('保存失败，请重试')));
     }
-    if (!mounted) return;
-    navigator.pop();
   }
 
   @override

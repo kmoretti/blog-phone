@@ -145,6 +145,55 @@ class CreateMediaPayload {
   };
 }
 
+CreateMediaPayload buildExternalMediaPayload(String url, String mediaType) {
+  final normalizedUrl = url.trim();
+  final uri = Uri.tryParse(normalizedUrl);
+  if (uri == null ||
+      !{'http', 'https'}.contains(uri.scheme.toLowerCase()) ||
+      uri.host.isEmpty ||
+      !{'image', 'video'}.contains(mediaType)) {
+    throw const FormatException('外链媒体必须是合法的 HTTP(S) 图片或视频地址');
+  }
+  return CreateMediaPayload(
+    mediaUrl: normalizedUrl,
+    mediaType: mediaType,
+    isLocal: 0,
+  );
+}
+
+class MomentMediaEntry {
+  const MomentMediaEntry({
+    required this.url,
+    required this.mediaType,
+    this.id,
+    this.name,
+    this.isExisting = false,
+    this.isLocal = false,
+  });
+  final int? id;
+  final String url;
+  final String mediaType;
+  final String? name;
+  final bool isExisting;
+  final bool isLocal;
+
+  factory MomentMediaEntry.fromDto(MomentMediaDto media) => MomentMediaEntry(
+    id: media.id,
+    url: media.mediaUrl,
+    mediaType: media.mediaType,
+    name: media.name.isEmpty ? null : media.name,
+    isExisting: true,
+    isLocal: media.isLocal == 1,
+  );
+
+  CreateMediaPayload toPayload() => CreateMediaPayload(
+    mediaUrl: url,
+    mediaType: mediaType,
+    isLocal: isLocal ? 1 : 0,
+    name: name,
+  );
+}
+
 class CreateMomentPayload {
   const CreateMomentPayload({
     required this.content,
