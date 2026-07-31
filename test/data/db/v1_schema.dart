@@ -1,0 +1,16 @@
+const v1Schema = <String>[
+  'CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)',
+  'CREATE TABLE auth_session (id INTEGER PRIMARY KEY CHECK (id = 1), token TEXT NOT NULL, base_url TEXT NOT NULL, expires_at TEXT NOT NULL, user_id TEXT, updated_at TEXT NOT NULL)',
+  'CREATE TABLE moments (id TEXT PRIMARY KEY, content TEXT NOT NULL, tags TEXT NOT NULL DEFAULT \'\', pinned_order INTEGER NOT NULL DEFAULT 0, is_ad INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, guild_id INTEGER, channel_id INTEGER, message_id INTEGER, message_link TEXT NOT NULL DEFAULT \'\', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)',
+  'CREATE TABLE moment_media (id INTEGER PRIMARY KEY, moment_id INTEGER NOT NULL, name TEXT NOT NULL DEFAULT \'\', media_url TEXT NOT NULL, media_type TEXT NOT NULL, is_local INTEGER NOT NULL DEFAULT 0)',
+  'CREATE TABLE moment_reactions (id INTEGER PRIMARY KEY, moment_id INTEGER NOT NULL, fingerprint_id INTEGER NOT NULL, reaction TEXT NOT NULL, created_at INTEGER NOT NULL)',
+  'CREATE TABLE friend_links (id INTEGER PRIMARY KEY, name TEXT NOT NULL, link TEXT NOT NULL, avatar TEXT NOT NULL, info TEXT NOT NULL, updated_at INTEGER NOT NULL)',
+  'CREATE TABLE friend_link_groups (id INTEGER PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)',
+  'CREATE TABLE friend_link_group_mapping (id INTEGER PRIMARY KEY, friend_link_id INTEGER NOT NULL, friend_link_group_id INTEGER NOT NULL, UNIQUE(friend_link_id, friend_link_group_id))',
+  'CREATE TABLE rss_feeds (id INTEGER PRIMARY KEY, name TEXT NOT NULL, rss_url TEXT NOT NULL)',
+  'CREATE TABLE rss_posts (id INTEGER PRIMARY KEY, rss_id INTEGER NOT NULL, title TEXT NOT NULL, link TEXT NOT NULL, description TEXT NOT NULL, author TEXT NOT NULL, time INTEGER NOT NULL)',
+  'CREATE TABLE images (id INTEGER PRIMARY KEY, name TEXT NOT NULL, url TEXT NOT NULL, local_path TEXT NOT NULL, is_local INTEGER NOT NULL DEFAULT 0, is_oss INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL)',
+  'CREATE TABLE drafts (id TEXT PRIMARY KEY, content TEXT NOT NULL, status TEXT NOT NULL, media_json TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)',
+  'CREATE TABLE outbox (id TEXT PRIMARY KEY, operation TEXT NOT NULL, payload TEXT NOT NULL, status TEXT NOT NULL, retry_count INTEGER NOT NULL DEFAULT 0, last_error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, processed_at TEXT)',
+  'CREATE INDEX outbox_status_created_idx ON outbox(status, created_at)',
+];

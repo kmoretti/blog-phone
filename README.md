@@ -1,17 +1,19 @@
-# blog_phone
+# blog-phone
 
-A new Flutter project.
+blog-phone 是 Blog API 的 Flutter 移动端客户端，使用 Flutter 和 Riverpod 构建。
 
-## Getting Started
+## 开发
 
-This project is a starting point for a Flutter application.
+在项目目录执行：
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+flutter pub get
+flutter run
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## 验证
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter analyze
+flutter test
+```
