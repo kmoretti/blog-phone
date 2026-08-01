@@ -106,6 +106,142 @@ void main() {
     });
   });
 
+  test('parses friend link groups and serializes group payloads', () {
+    final group = FriendLinkGroup.fromJson({
+      'id': 3,
+      'name': '技术博客',
+      'description': '技术类友链',
+      'sort_order': 2,
+      'created_at': 100,
+      'updated_at': 200,
+    });
+
+    expect(group.id, 3);
+    expect(group.name, '技术博客');
+    expect(group.description, '技术类友链');
+    expect(group.sortOrder, 2);
+    expect(group.createdAt, 100);
+    expect(group.updatedAt, 200);
+    expect(
+      const FriendLinkGroupPayload(
+        name: '技术博客',
+        description: '技术类友链',
+        sortOrder: 2,
+      ).toJson(),
+      const {'name': '技术博客', 'description': '技术类友链', 'sort_order': 2},
+    );
+  });
+
+  test('uses the existing friend group endpoints', () async {
+    final adapter = FriendAdapter('{"code":200,"data":{"group_ids":[1,3]}}');
+    final api = FriendLinksApi(
+      ApiClient(
+        baseUrl: 'https://api.test',
+        store: MemorySecureStore({'jwt': 'token'}),
+        dio: Dio()..httpClientAdapter = adapter,
+      ),
+    );
+
+    final groupIds = await api.getGroupIds(9);
+    expect(groupIds, [1, 3]);
+    expect(
+      adapter.request?.uri.toString(),
+      'https://api.test/api/action/friend/9/groups',
+    );
+    expect(adapter.request?.method, 'GET');
+
+    final listAdapter = FriendAdapter(
+      '{"code":200,"data":[{"id":3,"name":"技术博客","description":"","sort_order":0,"created_at":1,"updated_at":1}]}',
+    );
+    final listApi = FriendLinksApi(
+      ApiClient(
+        baseUrl: 'https://api.test',
+        store: MemorySecureStore({'jwt': 'token'}),
+        dio: Dio()..httpClientAdapter = listAdapter,
+      ),
+    );
+    expect((await listApi.getGroups()).single.name, '技术博客');
+    expect(
+      listAdapter.request?.uri.toString(),
+      'https://api.test/api/action/friend/group',
+    );
+
+    final createAdapter = FriendAdapter(
+      '{"code":201,"data":{"id":3,"name":"技术博客","description":"技术类友链","sort_order":2,"created_at":100,"updated_at":200}}',
+      statusCode: 201,
+    );
+    final createApi = FriendLinksApi(
+      ApiClient(
+        baseUrl: 'https://api.test',
+        store: MemorySecureStore({'jwt': 'token'}),
+        dio: Dio()..httpClientAdapter = createAdapter,
+      ),
+    );
+    final created = await createApi.createGroup(
+      const FriendLinkGroupPayload(
+        name: '技术博客',
+        description: '技术类友链',
+        sortOrder: 2,
+      ),
+    );
+    expect(created.id, 3);
+    expect(createAdapter.request?.method, 'POST');
+    expect(createAdapter.request?.data, const {
+      'name': '技术博客',
+      'description': '技术类友链',
+      'sort_order': 2,
+    });
+
+    final mutationAdapter = FriendAdapter('{"code":200,"data":null}');
+    final mutationApi = FriendLinksApi(
+      ApiClient(
+        baseUrl: 'https://api.test',
+        store: MemorySecureStore({'jwt': 'token'}),
+        dio: Dio()..httpClientAdapter = mutationAdapter,
+      ),
+    );
+    await mutationApi.updateGroup(
+      3,
+      const FriendLinkGroupPayload(name: '新名称', sortOrder: 3),
+    );
+    expect(mutationAdapter.request?.method, 'PUT');
+    expect(
+      mutationAdapter.request?.uri.toString(),
+      endsWith('/api/action/friend/group/3'),
+    );
+    await mutationApi.deleteGroup(3);
+    expect(mutationAdapter.request?.method, 'DELETE');
+    await mutationApi.setGroups(9, const []);
+    expect(mutationAdapter.request?.method, 'PUT');
+    expect(
+      mutationAdapter.request?.uri.toString(),
+      endsWith('/api/action/friend/9/groups'),
+    );
+    expect(mutationAdapter.request?.data, const {'group_ids': []});
+  });
+
+  test('migrates existing friend links through the backend endpoint', () async {
+    final adapter = FriendAdapter(
+      '{"code":200,"data":{"message":"migration completed"}}',
+    );
+    final api = FriendLinksApi(
+      ApiClient(
+        baseUrl: 'https://api.test',
+        store: MemorySecureStore({'jwt': 'token'}),
+        dio: Dio()..httpClientAdapter = adapter,
+      ),
+    );
+
+    await api.migrateGroups();
+
+    expect(adapter.request?.method, 'POST');
+    expect(
+      adapter.request?.uri.toString(),
+      'https://api.test/api/action/friend/group/migrate',
+    );
+    expect(adapter.request?.data, isNull);
+  });
+
   test('passes the selected status to the friend list API', () async {
     final adapter = FriendAdapter(
       '{"code":200,"data":{"items":[],"total":0,"page":1,"page_size":20}}',
@@ -182,7 +318,7 @@ void main() {
   test(
     'create posts the FriendWebsite fields directly without data wrapping',
     () async {
-      final adapter = FriendAdapter('{"code":200,"data":{}}');
+      final adapter = FriendAdapter('{"code":200,"data":{"id":7}}');
       final api = FriendLinksApi(
         ApiClient(
           baseUrl: 'https://api.test',

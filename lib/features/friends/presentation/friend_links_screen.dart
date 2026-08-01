@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../data/friend_links_api.dart';
 import '../data/friend_links_provider.dart';
+import '../data/friend_links_repository.dart';
 
 class FriendLinksScreen extends ConsumerWidget {
   const FriendLinksScreen({super.key});
@@ -18,11 +19,18 @@ class FriendLinksScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('友链'),
         actions: [
-          if (admin)
+          if (admin) ...[
             IconButton(
+              tooltip: '分组管理',
+              icon: const Icon(Icons.category_outlined),
+              onPressed: () => _openGroupManager(context, ref),
+            ),
+            IconButton(
+              tooltip: '新增友链',
               icon: const Icon(Icons.add),
               onPressed: () => _edit(context, ref),
             ),
+          ],
         ],
       ),
       body: result.when(
@@ -47,11 +55,34 @@ class FriendLinksScreen extends ConsumerWidget {
     );
   }
 
+  Future<void> _openGroupManager(BuildContext context, WidgetRef ref) async {
+    final repository = ref.read(friendLinksRepositoryProvider);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _GroupManagerDialog(repository: repository),
+    );
+    if (context.mounted) ref.invalidate(friendLinksPageProvider);
+  }
+
   Future<void> _edit(
     BuildContext context,
     WidgetRef ref, [
     FriendLinkDto? item,
   ]) async {
+    final repository = ref.read(friendLinksRepositoryProvider);
+    List<FriendLinkGroup> groups = const [];
+    var selectedGroupIds = <int>[];
+    try {
+      groups = await repository.getGroups();
+      if (item != null)
+        selectedGroupIds = await repository.getGroupIds(item.id);
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('加载友链分组失败：$error')));
+      }
+    }
     final fields = {
       'name': TextEditingController(text: item?.name ?? ''),
       'link': TextEditingController(text: item?.link ?? ''),
@@ -93,6 +124,32 @@ class FriendLinksScreen extends ConsumerWidget {
                   _field(fields['rss']!, 'RSS 备用地址'),
                   _field(fields['color']!, '颜色'),
                   _field(fields['tags']!, '标签（逗号分隔）'),
+                  if (groups.isNotEmpty) ...[
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('所属分组'),
+                    ),
+                    ...groups.map(
+                      (group) => CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(group.name),
+                        value: selectedGroupIds.contains(group.id),
+                        onChanged: (value) => setState(() {
+                          if (value == true) {
+                            selectedGroupIds = [
+                              ...selectedGroupIds,
+                              if (!selectedGroupIds.contains(group.id))
+                                group.id,
+                            ];
+                          } else {
+                            selectedGroupIds = selectedGroupIds
+                                .where((id) => id != group.id)
+                                .toList();
+                          }
+                        }),
+                      ),
+                    ),
+                  ],
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('启用 RSS'),
@@ -102,9 +159,7 @@ class FriendLinksScreen extends ConsumerWidget {
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('跳过健康检查'),
-                    subtitle: const Text(
-                      '开启后，系统不会自动检查该友链的可访问性。仅管理员使用。',
-                    ),
+                    subtitle: const Text('开启后，系统不会自动检查该友链的可访问性。仅管理员使用。'),
                     value: skipHealthCheck,
                     onChanged: (value) =>
                         setState(() => skipHealthCheck = value),
@@ -194,14 +249,33 @@ class FriendLinksScreen extends ConsumerWidget {
                       ? null
                       : fields['rejectionReason']!.text.trim(),
                 );
-                if (item == null) {
-                  await ref.read(friendLinksRepositoryProvider).create(payload);
-                } else {
-                  await ref
-                      .read(friendLinksRepositoryProvider)
-                      .update(item.id, payload);
+                try {
+                  final repository = ref.read(friendLinksRepositoryProvider);
+                  late final int id;
+                  if (item == null) {
+                    id = await repository.create(payload);
+                  } else {
+                    await repository.update(item.id, payload);
+                    id = item.id;
+                  }
+                  try {
+                    await repository.setGroups(id, selectedGroupIds);
+                  } catch (error) {
+                    if (dialogContext.mounted) {
+                      ScaffoldMessenger.of(dialogContext).showSnackBar(
+                        const SnackBar(content: Text('友链已保存，但分组更新失败')),
+                      );
+                    }
+                    return;
+                  }
+                  if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+                } catch (error) {
+                  if (dialogContext.mounted) {
+                    ScaffoldMessenger.of(
+                      dialogContext,
+                    ).showSnackBar(SnackBar(content: Text('保存友链失败：$error')));
+                  }
                 }
-                if (dialogContext.mounted) Navigator.pop(dialogContext, true);
               },
               child: const Text('保存'),
             ),
@@ -226,6 +300,245 @@ class FriendLinksScreen extends ConsumerWidget {
     controller: controller,
     maxLines: maxLines,
     decoration: InputDecoration(labelText: required ? '$label *' : label),
+  );
+}
+
+class _GroupManagerDialog extends StatefulWidget {
+  const _GroupManagerDialog({required this.repository});
+  final FriendLinksRepository repository;
+
+  @override
+  State<_GroupManagerDialog> createState() => _GroupManagerDialogState();
+}
+
+class _GroupManagerDialogState extends State<_GroupManagerDialog> {
+  List<FriendLinkGroup> groups = const [];
+  bool loading = true;
+  bool migrating = false;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      final result = await widget.repository.getGroups();
+      if (!mounted) return;
+      setState(() => groups = result);
+    } catch (value) {
+      if (!mounted) return;
+      setState(() => error = '加载分组失败：$value');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _editGroup([FriendLinkGroup? group]) async {
+    final name = TextEditingController(text: group?.name ?? '');
+    final description = TextEditingController(text: group?.description ?? '');
+    final sortOrder = TextEditingController(text: '${group?.sortOrder ?? 0}');
+    final payload = await showDialog<FriendLinkGroupPayload>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(group == null ? '新增分组' : '编辑分组'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: name,
+              decoration: const InputDecoration(labelText: '名称 *'),
+            ),
+            TextField(
+              controller: description,
+              decoration: const InputDecoration(labelText: '描述'),
+            ),
+            TextField(
+              controller: sortOrder,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: '排序'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final groupName = name.text.trim();
+              final order = int.tryParse(sortOrder.text.trim());
+              if (groupName.isEmpty || order == null || order < 0) return;
+              Navigator.pop(
+                dialogContext,
+                FriendLinkGroupPayload(
+                  name: groupName,
+                  description: description.text.trim(),
+                  sortOrder: order,
+                ),
+              );
+            },
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    name.dispose();
+    description.dispose();
+    sortOrder.dispose();
+    if (payload == null || !mounted) return;
+    try {
+      if (group == null) {
+        await widget.repository.createGroup(payload);
+      } else {
+        await widget.repository.updateGroup(group.id, payload);
+      }
+      await _load();
+    } catch (value) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('保存分组失败：$value')));
+      }
+    }
+  }
+
+  Future<void> _migrateGroups() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('迁移未分组友链'),
+        content: const Text('该操作会将所有未分组友链归入默认分组，并为缺少颜色的存活友链补充颜色。确定继续吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => migrating = true);
+    try {
+      await widget.repository.migrateGroups();
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('友链分组迁移完成')));
+      }
+    } catch (value) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('友链分组迁移失败：$value')));
+      }
+    } finally {
+      if (mounted) setState(() => migrating = false);
+    }
+  }
+
+  Future<void> _deleteGroup(FriendLinkGroup group) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('删除分组'),
+        content: Text('确定删除“${group.name}”吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await widget.repository.deleteGroup(group.id);
+      await _load();
+    } catch (value) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('删除分组失败：$value')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('分组管理'),
+    content: SizedBox(
+      width: 560,
+      child: loading
+          ? const SizedBox(
+              height: 160,
+              child: Center(child: CircularProgressIndicator()),
+            )
+          : error != null
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(error!),
+                TextButton(onPressed: _load, child: const Text('重试')),
+              ],
+            )
+          : groups.isEmpty
+          ? const Text('暂无分组')
+          : ListView.builder(
+              shrinkWrap: true,
+              itemCount: groups.length,
+              itemBuilder: (context, index) {
+                final group = groups[index];
+                return ListTile(
+                  title: Text(group.name),
+                  subtitle: Text(
+                    '${group.description} · 排序 ${group.sortOrder}',
+                  ),
+                  trailing: Wrap(
+                    children: [
+                      IconButton(
+                        tooltip: '编辑分组',
+                        icon: const Icon(Icons.edit_outlined),
+                        onPressed: () => _editGroup(group),
+                      ),
+                      IconButton(
+                        tooltip: '删除分组',
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () => _deleteGroup(group),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: migrating ? null : _migrateGroups,
+        child: Text(migrating ? '迁移中…' : '迁移未分组友链'),
+      ),
+      TextButton(onPressed: () => _editGroup(), child: const Text('新增分组')),
+      FilledButton(
+        onPressed: migrating ? null : () => Navigator.pop(context),
+        child: const Text('关闭'),
+      ),
+    ],
   );
 }
 

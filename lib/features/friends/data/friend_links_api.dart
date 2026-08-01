@@ -1,5 +1,51 @@
 import '../../../data/api/api_client.dart';
 
+class FriendLinkGroup {
+  const FriendLinkGroup({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.sortOrder,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final int id;
+  final String name;
+  final String description;
+  final int sortOrder;
+  final int createdAt;
+  final int updatedAt;
+
+  factory FriendLinkGroup.fromJson(Map<String, dynamic> json) =>
+      FriendLinkGroup(
+        id: _int(json['id']),
+        name: _string(json['name']),
+        description: _string(json['description']),
+        sortOrder: _int(json['sort_order']),
+        createdAt: _int(json['created_at']),
+        updatedAt: _int(json['updated_at']),
+      );
+}
+
+class FriendLinkGroupPayload {
+  const FriendLinkGroupPayload({
+    required this.name,
+    this.description = '',
+    this.sortOrder = 0,
+  });
+
+  final String name;
+  final String description;
+  final int sortOrder;
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'description': description,
+    'sort_order': sortOrder,
+  };
+}
+
 class FriendLinkDto {
   const FriendLinkDto({
     required this.id,
@@ -106,7 +152,12 @@ class FriendLinkApplyPayload {
     this.turnstileToken,
   });
   final String name, link, avatar;
-  final String? description, email, snapshot, friendLinkPage, feed, turnstileToken;
+  final String? description,
+      email,
+      snapshot,
+      friendLinkPage,
+      feed,
+      turnstileToken;
   final bool enableRss;
   Map<String, dynamic> toJson() => {
     'name': name,
@@ -227,18 +278,59 @@ class FriendLinksApi {
           : {'X-Turnstile-Token': token},
     );
   }
-  Future<void> create(FriendLinkPayload payload) async =>
-      client.post('action/friend', data: payload.toCreateJson());
+
+  Future<int> create(FriendLinkPayload payload) async {
+    final body = await client.post(
+      'action/friend',
+      data: payload.toCreateJson(),
+    );
+    final data = body['data'];
+    final id = data is Map ? _int(data['id']) : _int(body['id']);
+    if (id <= 0) throw StateError('friend link creation did not return an id');
+    return id;
+  }
+
   Future<void> update(int id, FriendLinkPayload payload) async =>
       client.put('action/friend/$id', data: payload.toJson());
+
   Future<void> delete(int id) async => client.delete('action/friend/$id');
+
+  Future<List<FriendLinkGroup>> getGroups() async {
+    final body = await client.get('action/friend/group');
+    return _maps(body['data']).map(FriendLinkGroup.fromJson).toList();
+  }
+
+  Future<FriendLinkGroup> createGroup(FriendLinkGroupPayload payload) async {
+    final body = await client.post(
+      'action/friend/group',
+      data: payload.toJson(),
+    );
+    return FriendLinkGroup.fromJson(
+      Map<String, dynamic>.from(body['data'] as Map),
+    );
+  }
+
+  Future<void> updateGroup(int id, FriendLinkGroupPayload payload) async =>
+      client.put('action/friend/group/$id', data: payload.toJson());
+
+  Future<void> deleteGroup(int id) async =>
+      client.delete('action/friend/group/$id');
+
+  Future<List<int>> getGroupIds(int id) async {
+    final body = await client.get('action/friend/$id/groups');
+    final data = Map<String, dynamic>.from(body['data'] as Map);
+    final values = data['group_ids'];
+    return values is List
+        ? values.map(_int).where((value) => value > 0).toList()
+        : const [];
+  }
+
   Future<void> setGroups(int id, List<int> groupIds) async =>
       client.put('action/friend/$id/groups', data: {'group_ids': groupIds});
-  Future<void> createGroup(String name, String description) async =>
-      client.post(
-        'action/friend/group',
-        data: {'name': name, 'description': description},
-      );
+
+  Future<void> migrateGroups() async {
+    await client.post('action/friend/group/migrate');
+  }
 }
 
 int _int(Object? value) =>
