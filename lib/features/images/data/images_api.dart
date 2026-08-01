@@ -22,7 +22,7 @@ class ImagesApi {
   Future<void> create(ImagePayload payload) => client.post('action/image', data: payload.toJson());
   Future<void> update(int id, ImagePayload payload) => client.put('action/image/$id', data: payload.toJson());
   Future<void> delete(int id) => client.delete('action/image/$id');
-  Future<ImageDto> publicImage({int? id}) async { final body = await client.get(id == null ? 'public/image' : 'public/image/$id', queryParameters: {'type': 'metadata'}); return ImageDto.fromJson(Map<String, dynamic>.from(body['data'] as Map? ?? body as Map)); }
+  Future<ImageDto> publicImage({int? id}) async { final body = await client.get(id == null ? 'public/image/' : 'public/image/$id', queryParameters: {'type': 'metadata'}); return ImageDto.fromJson(Map<String, dynamic>.from(body['data'] as Map? ?? body as Map)); }
 }
 int _int(Object? value) => value is num ? value.toInt() : int.tryParse('$value') ?? 0;
 String _string(Object? value) => value?.toString() ?? '';

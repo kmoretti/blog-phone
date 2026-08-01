@@ -98,9 +98,15 @@ class ApiClient {
     String path, {
     Object? data,
     Map<String, dynamic>? queryParameters,
+    Map<String, dynamic>? headers,
   }) async {
     return _request(
-      () => _dio.post(path, data: data, queryParameters: queryParameters),
+      () => _dio.post(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        options: headers == null ? null : Options(headers: headers),
+      ),
     );
   }
 
@@ -131,7 +137,7 @@ class ApiClient {
         }
         if (body is Map<String, dynamic> &&
             body['code'] is num &&
-            body['code'] != 200) {
+            ((body['code'] as num) < 200 || (body['code'] as num) >= 300)) {
           final exception = _exceptionFromBody(body, response.statusCode);
           await _notifyUnauthorized(exception);
           if (!exception.isRetryable || attempt == 2) throw exception;

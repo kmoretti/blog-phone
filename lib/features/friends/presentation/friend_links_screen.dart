@@ -56,6 +56,7 @@ class FriendLinksScreen extends ConsumerWidget {
       'name': TextEditingController(text: item?.name ?? ''),
       'link': TextEditingController(text: item?.link ?? ''),
       'avatar': TextEditingController(text: item?.avatar ?? ''),
+      'snapshot': TextEditingController(text: item?.snapshot ?? ''),
       'description': TextEditingController(text: item?.description ?? ''),
       'email': TextEditingController(text: item?.email ?? ''),
       'friendLinkPage': TextEditingController(text: item?.friendLinkPage ?? ''),
@@ -84,11 +85,12 @@ class FriendLinksScreen extends ConsumerWidget {
                   _field(fields['name']!, '名称', required: true),
                   _field(fields['link']!, '网址', required: true),
                   _field(fields['avatar']!, '头像地址', required: true),
+                  _field(fields['snapshot']!, '网站封面'),
                   _field(fields['description']!, '描述', maxLines: 3),
                   _field(fields['email']!, '邮箱'),
                   _field(fields['friendLinkPage']!, '友链页面'),
                   _field(fields['feed']!, 'Feed 地址'),
-                  _field(fields['rss']!, 'RSS 地址'),
+                  _field(fields['rss']!, 'RSS 备用地址'),
                   _field(fields['color']!, '颜色'),
                   _field(fields['tags']!, '标签（逗号分隔）'),
                   SwitchListTile(
@@ -100,6 +102,9 @@ class FriendLinksScreen extends ConsumerWidget {
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('跳过健康检查'),
+                    subtitle: const Text(
+                      '开启后，系统不会自动检查该友链的可访问性。仅管理员使用。',
+                    ),
                     value: skipHealthCheck,
                     onChanged: (value) =>
                         setState(() => skipHealthCheck = value),
@@ -170,6 +175,7 @@ class FriendLinksScreen extends ConsumerWidget {
                   name: fields['name']!.text.trim(),
                   link: fields['link']!.text.trim(),
                   avatar: fields['avatar']!.text.trim(),
+                  snapshot: fields['snapshot']!.text.trim(),
                   description: fields['description']!.text.trim(),
                   email: email,
                   enableRss: enableRss,
