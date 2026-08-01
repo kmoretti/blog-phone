@@ -346,8 +346,8 @@ class _MomentEditorScreenState extends ConsumerState<MomentEditorScreen> {
       return;
     }
     setState(() => isSaving = true);
-    final navigator = Navigator.of(context);
     final repository = ref.read(momentsRepositoryProvider);
+    final navigator = Navigator.of(context);
     final moment = widget.moment;
     final uploadPath =
         'moments/${DateTime.now().toUtc().toString().substring(2, 10).replaceAll('-', '')}';

@@ -53,7 +53,9 @@ void main() {
       selectedReaction: null,
     );
     await tester.pumpWidget(
-      const MaterialApp(home: MomentDetailScreen(moment: moment)),
+      const ProviderScope(
+        child: MaterialApp(home: MomentDetailScreen(moment: moment)),
+      ),
     );
     expect(find.text('👍 0'), findsOneWidget);
     expect(find.text('💩 0'), findsOneWidget);

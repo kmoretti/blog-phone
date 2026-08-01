@@ -67,6 +67,11 @@ class _UploadApi extends MomentsApi {
   bool failUpload = false;
 
   @override
+  Future<void> update(int id, UpdateMomentPayload payload) async {
+    await Future<void>.delayed(Duration.zero);
+  }
+
+  @override
   Future<void> createMedia(int momentId, CreateMediaPayload media) async {
     createMediaCalls++;
     createdMedia.add(media);
@@ -272,9 +277,8 @@ void main() {
   testWidgets('adds uploaded media through createMedia when editing', (
     tester,
   ) async {
-    final file = await File(
-      '${Directory.systemTemp.path}/edited.jpg',
-    ).writeAsString('image');
+    final file = File('${Directory.systemTemp.path}/edited.jpg');
+    file.writeAsStringSync('image');
     final api = _UploadApi();
     final repository = _UploadRepository(api, database);
     const moment = MomentDto(
@@ -307,15 +311,19 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.byKey(const Key('moment-attach-file')));
-    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      await tester.tap(find.byKey(const Key('moment-attach-file')));
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    });
+    await tester.pump();
     await tester.scrollUntilVisible(
       find.byKey(const Key('moment-save')),
       300,
       scrollable: find.byType(Scrollable).first,
     );
     await tester.tap(find.byKey(const Key('moment-save')));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(api.createCalls, 0);
     expect(api.createMediaCalls, 1);
