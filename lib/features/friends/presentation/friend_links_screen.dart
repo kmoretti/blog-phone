@@ -74,8 +74,9 @@ class FriendLinksScreen extends ConsumerWidget {
     var selectedGroupIds = <int>[];
     try {
       groups = await repository.getGroups();
-      if (item != null)
+      if (item != null) {
         selectedGroupIds = await repository.getGroupIds(item.id);
+      }
     } catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(
@@ -102,6 +103,7 @@ class FriendLinksScreen extends ConsumerWidget {
     var enableRss = item?.enableRss ?? false;
     var skipHealthCheck = item?.skipHealthCheck ?? false;
     var status = item?.status ?? 'pending';
+    if (!context.mounted) return;
     final result = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
