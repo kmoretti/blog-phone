@@ -94,7 +94,6 @@ class FriendLinksScreen extends ConsumerWidget {
       'friendLinkPage': TextEditingController(text: item?.friendLinkPage ?? ''),
       'feed': TextEditingController(text: item?.feed ?? ''),
       'color': TextEditingController(text: item?.color ?? ''),
-      'rss': TextEditingController(text: item?.rss ?? ''),
       'tags': TextEditingController(text: item?.tags.join(', ') ?? ''),
       'rejectionReason': TextEditingController(
         text: item?.rejectionReason ?? '',
@@ -123,7 +122,6 @@ class FriendLinksScreen extends ConsumerWidget {
                   _field(fields['email']!, '邮箱'),
                   _field(fields['friendLinkPage']!, '友链页面'),
                   _field(fields['feed']!, 'Feed 地址'),
-                  _field(fields['rss']!, 'RSS 备用地址'),
                   _field(fields['color']!, '颜色'),
                   _field(fields['tags']!, '标签（逗号分隔）'),
                   if (groups.isNotEmpty) ...[
@@ -240,7 +238,6 @@ class FriendLinksScreen extends ConsumerWidget {
                   friendLinkPage: fields['friendLinkPage']!.text.trim(),
                   feed: fields['feed']!.text.trim(),
                   color: fields['color']!.text.trim(),
-                  rss: fields['rss']!.text.trim(),
                   tags: fields['tags']!.text
                       .split(',')
                       .map((tag) => tag.trim())

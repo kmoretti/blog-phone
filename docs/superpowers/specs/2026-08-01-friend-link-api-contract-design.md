@@ -79,12 +79,11 @@ RSS 相关接口：
 
 公开申请接口只提交 `feed`，因为 `FriendLinkApplyReq` 没有 `rss` 字段。
 
-管理员接口保留 API 已有的 `feed` 和 `rss` 字段，但表单文案明确区分：
+管理员数据模型仍保留 API 已有的 `feed` 和 `rss` 字段用于兼容读取，但手机端管理表单只展示并编辑 API Web 管理页面实际提供的 `feed` 字段：
 
 - `Feed 地址`
-- `RSS 备用地址`
 
-不新增 `rss_url` 字段，也不创建新的 RSS API。客户端只负责透传 API 已支持字段。若界面需要提示，说明两者均为 API 管理模型已有字段，具体抓取数据仍由 API 的 `friend_rss.rss_url` 管理。
+手机端不展示或提交 `RSS 备用地址`，不新增 `rss_url` 字段，也不创建新的 RSS API。具体 RSS 抓取数据由 API 的 `friend_rss.rss_url` 管理。
 
 ## 跳过健康检查
 

@@ -289,7 +289,8 @@ void main() {
       expect(source, contains("'snapshot': TextEditingController"));
       expect(source, contains("_field(fields['snapshot']!, '网站封面')"));
       expect(source, contains("snapshot: fields['snapshot']!.text.trim()"));
-      expect(source, contains("_field(fields['rss']!, 'RSS 备用地址')"));
+      expect(source, isNot(contains("_field(fields['rss']!, 'RSS 备用地址')")));
+      expect(source, isNot(contains("'rss': TextEditingController")));
       expect(source, contains('开启后，系统不会自动检查该友链的可访问性。仅管理员使用。'));
     },
   );
