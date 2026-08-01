@@ -1,5 +1,9 @@
+import 'package:dio/dio.dart';
+import 'package:path/path.dart' as path;
+
 import '../../../data/api/api_client.dart';
 import '../../../data/api/api_exception.dart';
+import 'moment_upload.dart';
 
 class MomentMediaDto {
   const MomentMediaDto({
@@ -286,6 +290,39 @@ class MomentsApi {
       },
     );
     return MomentsPage.fromJson(Map<String, dynamic>.from(body['data'] as Map));
+  }
+
+  Future<MomentUploadResult> uploadMomentMedia({
+    required String filePath,
+    required MomentUploadTarget target,
+    required String uploadPath,
+  }) async {
+    final file = await MultipartFile.fromFile(
+      filePath,
+      filename: path.basename(filePath),
+    );
+    final body = await client.postMultipart(
+      target.endpoint,
+      FormData.fromMap({
+        'file': file,
+        'path': uploadPath,
+        'overwrite': 'false',
+      }),
+    );
+    final data = body is Map ? body['data'] : null;
+    final json = data is Map
+        ? Map<String, dynamic>.from(data)
+        : const <String, dynamic>{};
+    final url = json['url']?.toString().trim() ?? '';
+    if (url.isEmpty) {
+      throw const ApiException(message: '媒体上传成功但未返回资源地址');
+    }
+    return MomentUploadResult(
+      url: url,
+      isLocal: target.isLocal,
+      objectKey:
+          json['objectKey']?.toString() ?? json['object_key']?.toString(),
+    );
   }
 
   Future<void> create(CreateMomentPayload payload) async {

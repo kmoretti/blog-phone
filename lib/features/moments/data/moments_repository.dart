@@ -89,60 +89,75 @@ class MomentsRepository {
   }
 
   Future<void> save(CreateMomentPayload payload) async {
+    if (_hasUnuploadedLocalMedia(payload)) {
+      await _storeDraft(payload, null);
+      return;
+    }
     try {
-      if (payload.media.any((media) => media.isLocal == 1)) {
-        throw const ApiException(
-          message: '本地媒体尚未上传，已保存为草稿',
-          preservesDraft: true,
-        );
-      }
       await api.create(payload);
     } catch (error) {
       final apiError = error is ApiException ? error : null;
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final status = apiError?.isUnauthorized == true
-          ? db.OutboxStatus.pausedAuth
-          : apiError?.isRetryable == true
-          ? db.OutboxStatus.pending
-          : 'draft';
-      final draft = db.Draft(
-        id: 'moment-$now',
-        content: payload.content,
-        status: status,
-        mediaJson: jsonEncode(payload.toJson()['media']),
-        createdAt: now,
-        updatedAt: now,
-      );
-      final instance = await database.database;
-      final outboxStatus = apiError?.isRetryable == true
-          ? db.OutboxStatus.pending
-          : apiError?.isUnauthorized == true
-          ? db.OutboxStatus.pausedAuth
-          : null;
-      await instance.transaction((txn) async {
-        await txn.insert(
-          'drafts',
-          draft.toRow(),
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
-        if (outboxStatus != null) {
-          await txn.insert(
-            'outbox',
-            db.OutboxItem(
-              id: draft.id,
-              operation: 'create_moment',
-              payload: jsonEncode(payload.toJson()),
-              status: outboxStatus,
-              createdAt: DateTime.now().toUtc().toIso8601String(),
-            ).toRow(),
-            conflictAlgorithm: ConflictAlgorithm.replace,
-          );
-        }
-      });
+      await _storeDraft(payload, apiError);
       if (apiError?.preservesDraft == true || apiError?.isRetryable == false) {
         return;
       }
     }
+  }
+
+  bool _hasUnuploadedLocalMedia(CreateMomentPayload payload) => payload.media
+      .any((media) => media.isLocal == 1 && !_isHttpUrl(media.mediaUrl));
+
+  bool _isHttpUrl(String value) {
+    final uri = Uri.tryParse(value);
+    return uri != null &&
+        {'http', 'https'}.contains(uri.scheme.toLowerCase()) &&
+        uri.host.isNotEmpty;
+  }
+
+  Future<void> _storeDraft(
+    CreateMomentPayload payload,
+    ApiException? error,
+  ) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final status = error?.isUnauthorized == true
+        ? db.OutboxStatus.pausedAuth
+        : error?.isRetryable == true
+        ? db.OutboxStatus.pending
+        : 'draft';
+    final draft = db.Draft(
+      id: 'moment-$now',
+      content: payload.content,
+      status: status,
+      mediaJson: jsonEncode(payload.toJson()['media']),
+      createdAt: now,
+      updatedAt: now,
+    );
+    final instance = await database.database;
+    final outboxStatus = error?.isRetryable == true
+        ? db.OutboxStatus.pending
+        : error?.isUnauthorized == true
+        ? db.OutboxStatus.pausedAuth
+        : null;
+    await instance.transaction((txn) async {
+      await txn.insert(
+        'drafts',
+        draft.toRow(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      if (outboxStatus != null) {
+        await txn.insert(
+          'outbox',
+          db.OutboxItem(
+            id: draft.id,
+            operation: 'create_moment',
+            payload: jsonEncode(payload.toJson()),
+            status: outboxStatus,
+            createdAt: DateTime.now().toUtc().toIso8601String(),
+          ).toRow(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
   }
 
   Future<MomentsPage?> _readCache(

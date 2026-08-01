@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
+import '../../../data/api/api_client.dart';
 import '../../../state/auth/auth_provider.dart';
 import '../data/moments_api.dart';
 import '../data/moments_provider.dart';
@@ -16,7 +17,11 @@ class MomentsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isAdmin = ref.watch(authProvider) is AuthenticatedState;
+    final auth = ref.watch(authProvider);
+    final isAdmin = auth is AuthenticatedState;
+    final baseUrl = auth is AuthenticatedState
+        ? auth.session.baseUrl
+        : defaultApiBaseUrl;
     final result = ref.watch(momentsPageProvider(isAdmin));
     return Scaffold(
       appBar: AppBar(
@@ -55,8 +60,11 @@ class MomentsScreen extends ConsumerWidget {
                     ref.refresh(momentsPageProvider(isAdmin).future),
                 child: ListView.builder(
                   itemCount: page.items.length,
-                  itemBuilder: (_, index) =>
-                      _MomentCard(moment: page.items[index], isAdmin: isAdmin),
+                  itemBuilder: (_, index) => _MomentCard(
+                    moment: page.items[index],
+                    isAdmin: isAdmin,
+                    apiBaseUrl: baseUrl,
+                  ),
                 ),
               ),
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -70,9 +78,14 @@ class MomentsScreen extends ConsumerWidget {
 }
 
 class _MomentCard extends StatelessWidget {
-  const _MomentCard({required this.moment, required this.isAdmin});
+  const _MomentCard({
+    required this.moment,
+    required this.isAdmin,
+    required this.apiBaseUrl,
+  });
   final MomentDto moment;
   final bool isAdmin;
+  final String apiBaseUrl;
   @override
   Widget build(BuildContext context) => Card(
     margin: const EdgeInsets.all(12),
@@ -93,9 +106,15 @@ class _MomentCard extends StatelessWidget {
                     children: [
                       Expanded(child: Text(_time(moment.createdAt))),
                       if (moment.pinnedOrder > 0)
-                        const Chip(label: Text('置顶'), avatar: Icon(Icons.push_pin, size: 16)),
+                        const Chip(
+                          label: Text('置顶'),
+                          avatar: Icon(Icons.push_pin, size: 16),
+                        ),
                       if (moment.isAd == 1)
-                        const Chip(label: Text('广告'), avatar: Icon(Icons.campaign_outlined, size: 16)),
+                        const Chip(
+                          label: Text('广告'),
+                          avatar: Icon(Icons.campaign_outlined, size: 16),
+                        ),
                     ],
                   ),
                 ),
@@ -118,14 +137,23 @@ class _MomentCard extends StatelessWidget {
               const SizedBox(height: 8),
               Wrap(
                 spacing: 6,
-                children: moment.tags.split(',').where((tag) => tag.trim().isNotEmpty).map((tag) => Chip(label: Text('#${tag.trim()}'))).toList(),
+                children: moment.tags
+                    .split(',')
+                    .where((tag) => tag.trim().isNotEmpty)
+                    .map((tag) => Chip(label: Text('#${tag.trim()}')))
+                    .toList(),
               ),
             ],
             if (moment.messageLink.trim().isNotEmpty)
               Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
-                  onPressed: isHttpUrl(moment.messageLink) ? () => launchUrl(Uri.parse(moment.messageLink), mode: LaunchMode.externalApplication) : null,
+                  onPressed: isHttpUrl(moment.messageLink)
+                      ? () => launchUrl(
+                          Uri.parse(moment.messageLink),
+                          mode: LaunchMode.externalApplication,
+                        )
+                      : null,
                   icon: const Icon(Icons.link, size: 18),
                   label: const Text('查看来源'),
                 ),
@@ -140,6 +168,7 @@ class _MomentCard extends StatelessWidget {
                   url: moment.media.first.mediaUrl,
                   mediaType: moment.media.first.mediaType,
                   isLocal: moment.media.first.isLocal == 1,
+                  apiBaseUrl: apiBaseUrl,
                 ),
               ),
             ],

@@ -1,7 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
+
 import 'package:cached_network_image/cached_network_image.dart';
+
+import '../../../data/api/api_client.dart';
+import '../data/moment_upload.dart';
 
 class MediaPreview extends StatelessWidget {
   const MediaPreview({
@@ -9,16 +11,19 @@ class MediaPreview extends StatelessWidget {
     required this.url,
     required this.mediaType,
     this.isLocal = false,
+    this.apiBaseUrl = defaultApiBaseUrl,
   });
   final String url;
   final String mediaType;
   final bool isLocal;
+  final String apiBaseUrl;
 
   @override
   Widget build(BuildContext context) {
-    final child = isLocal
-        ? Image.file(File(url), fit: BoxFit.cover)
-        : CachedNetworkImage(imageUrl: url, fit: BoxFit.cover);
+    final child = CachedNetworkImage(
+      imageUrl: resolveMomentMediaUrl(apiBaseUrl, url),
+      fit: BoxFit.cover,
+    );
     return AspectRatio(
       aspectRatio: 1,
       child: mediaType == 'video'

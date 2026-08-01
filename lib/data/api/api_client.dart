@@ -104,6 +104,10 @@ class ApiClient {
     );
   }
 
+  Future<dynamic> postMultipart(String path, FormData data) async {
+    return _request(() => _dio.post(path, data: data));
+  }
+
   Future<dynamic> put(String path, {Object? data}) async {
     return _request(() => _dio.put(path, data: data));
   }
